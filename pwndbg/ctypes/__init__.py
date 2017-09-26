@@ -30,6 +30,6 @@ def update():
     else:
         Structure = ctypes.BigEndianStructure
 
-    module.__dict__.update(locals())
+    module.__dict__.update({'Structure': Structure})
 
 update()

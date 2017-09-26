@@ -168,5 +168,6 @@ def add_symbol_file(filename=None, address=0):
 
 def read_gdbvalue(type_name, addr):
     """ Read the memory contents at addr and interpret them as a GDB value with the given type """
-    gdb_type = pwndbg.typeinfo.load(type_name)
+    gdb_type = load(type_name)
     return gdb.Value(addr).cast(gdb_type.pointer()).dereference()
+

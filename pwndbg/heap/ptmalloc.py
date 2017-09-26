@@ -62,7 +62,7 @@ class Heap(pwndbg.heap.heap.BaseHeap):
     def heap_info(self):
         return pwndbg.typeinfo.load('heap_info')
 
-    
+
     @property
     @pwndbg.memoize.reset_on_objfile
     def malloc_chunk(self):
@@ -150,7 +150,7 @@ class Heap(pwndbg.heap.heap.BaseHeap):
 
     def get_heap(self,addr):
         return pwndbg.memory.poi(self.heap_info,heap_for_ptr(addr))
-        
+
 
     def get_arena(self, arena_addr=None):
         if arena_addr is None:
@@ -167,7 +167,7 @@ class Heap(pwndbg.heap.heap.BaseHeap):
         else:
             r=self.main_arena
         return r
-            
+
     def get_region(self,addr=None):
         """
         Finds the memory region used for heap by using mp_ structure's sbrk_base property
@@ -183,7 +183,7 @@ class Heap(pwndbg.heap.heap.BaseHeap):
             ## trim whole page to look exactly like heap
             page.size = int(heap['size'])
             page.vaddr = base
-            
+
             return page
 
         page = None
@@ -201,7 +201,7 @@ class Heap(pwndbg.heap.heap.BaseHeap):
 
         return None
 
-    
+
     def fastbin_index(self, size):
         if pwndbg.arch.ptrsize == 8:
             return (size >> 4) - 2
@@ -228,7 +228,7 @@ class Heap(pwndbg.heap.heap.BaseHeap):
 
         return result
 
-    
+
 
     def bin_at(self, index, arena_addr=None):
         """
@@ -304,3 +304,27 @@ class Heap(pwndbg.heap.heap.BaseHeap):
             result[size] = chain
 
         return result
+
+class PtmallocChunkPrettyPrinter(object):
+    @classmethod
+    def lookup(clazz, val):
+        import pdb; pdb.set_trace()
+        if val.type.tag == 'malloc_chunk':
+            return clazz(val)
+        return None
+
+    def __init__(self, val):
+        self.val = val
+
+    def to_string(self):
+        return "FOO BAR"
+
+    def display_hint(self):
+        return "string"
+
+    def build_pretty_printer():
+        pp = gdb.printing.RegexpCollectionPrettyPrinter("ptmalloc")
+        pp.add_printer('malloc_chunk', 'malloc_chunk', PtmallocChunkPrettyPrinter)
+        return pp
+
+# gdb.pretty_printers.append(PtmallocChunkPrettyPrinter.lookup)

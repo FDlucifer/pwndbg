@@ -21,6 +21,11 @@ else
 fi
 
 if linux; then
+    if ! hash apt-get 2>/dev/null; then
+        echo 'Your Linux distribution is not supported for setup.sh'
+        echo 'Be sure to check your package manager for a pwndbg package'
+    fi
+
     sudo apt-get update || true
     sudo apt-get -y install gdb python-dev python3-dev python-pip python3-pip libglib2.0-dev libc6-dbg
 
