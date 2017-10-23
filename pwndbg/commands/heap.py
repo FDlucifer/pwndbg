@@ -7,17 +7,21 @@ from __future__ import unicode_literals
 
 import struct
 
+import argparse
 import gdb
+import gdb.printing
 import six
 
 import pwndbg.color.memory as M
 import pwndbg.commands
+import pwndbg.events
+import pwndbg.memory
 import pwndbg.typeinfo
 from pwndbg.color import bold
 from pwndbg.color import red
 from pwndbg.color import underline
 from pwndbg.color import yellow
-
+from pwndbg.hexdump import hexdump
 
 def read_chunk(addr):
     # in old versions of glibc, `mchunk_[prev_]size` was simply called `[prev_]size`
@@ -54,12 +58,18 @@ def format_bin(bins, verbose=False):
 
     return result
 
-@pwndbg.commands.ParsedCommand
+
+parser = argparse.ArgumentParser(
+    description='Prints out all chunks in the main_arena, or the arena specified by `addr`.'
+)
+parser.add_argument('-d', '--dump', action='store_true', help='Dump heap contents', default=False)
+parser.add_argument('addr', type=int, default=None, help='Arena address', nargs='?')
+
+@pwndbg.commands.ArgparsedCommand(parser)
 @pwndbg.commands.OnlyWhenRunning
-def heap(addr=None):
-    """
-    Prints out all chunks in the main_arena, or the arena specified by `addr`.
-    """
+def heap(addr, dump=False):
+    import pdb;
+    pdb.set_trace()
 
     main_heap   = pwndbg.heap.current
     main_arena  = main_heap.get_arena(addr)
@@ -84,7 +94,7 @@ def heap(addr=None):
     # TODO: Add an option to print out only free or allocated chunks
     addr = heap_region.vaddr
     while addr <= top:
-        chunk = malloc_chunk(addr)
+        chunk = malloc_chunk(addr, dump=dump)
         size = int(chunk['size'])
 
         # Clear the bottom 3 bits
@@ -112,7 +122,7 @@ def arena(addr=None):
 @pwndbg.commands.OnlyWhenRunning
 def arenas():
     """
-    Prints out allocated arenas 
+    Prints out allocated arenas
     """
 
     heap  = pwndbg.heap.current
@@ -121,7 +131,7 @@ def arenas():
     main_arena_addr = int(arena.address)
     fmt = '[%%%ds]' % (pwndbg.arch.ptrsize *2)
     while addr != main_arena_addr:
-        
+
         h = heap.get_region(addr)
         if not h:
             print(red('Could not find the heap'))
@@ -129,11 +139,11 @@ def arenas():
 
         hdr = bold(fmt%(hex(addr) if addr else 'main'))
         print(hdr, M.heap(str(h)))
-        addr = int(arena['next'])        
+        addr = int(arena['next'])
         arena = heap.get_arena(addr)
 
 
-    
+
 @pwndbg.commands.ParsedCommand
 @pwndbg.commands.OnlyWhenRunning
 def mp():
@@ -185,7 +195,7 @@ def top_chunk(addr=None):
 
 @pwndbg.commands.ParsedCommand
 @pwndbg.commands.OnlyWhenRunning
-def malloc_chunk(addr):
+def malloc_chunk(addr, dump=False):
     """
     Prints out the malloc_chunk at the specified address.
     """
@@ -201,19 +211,30 @@ def malloc_chunk(addr):
     arena = None
     if non_main_arena:
         arena = main_heap.get_heap(addr)['ar_ptr']
-        
+
     fastbins = main_heap.fastbins(arena)
     header = M.get(addr)
+
+    flags = ''
     if prev_inuse:
+        header += yellow(' INUSE')
+    if is_mmaped:
+        header += yellow(' MMAPED')
+    if non_main_arena:
+        header += yellow(' NON_MAIN_ARENA')
+
+    if prev_inuse:
+        header += yellow(' PREV_INUSE')
         if actual_size in fastbins:
-            header += yellow(' FASTBIN')
-        else:
-            header += yellow(' PREV_INUSE')
+            header += yellow(' FASTBIN[%#x]' % actual_size)
     if is_mmapped:
         header += yellow(' IS_MMAPED')
     if non_main_arena:
         header += yellow(' NON_MAIN_ARENA')
     print(header, chunk["value"])
+    if dump:
+        data = pwndbg.memory.read(addr, actual_size)
+        print('\n'.join(hexdump(data, address=addr)))
 
     return chunk
 
@@ -335,3 +356,25 @@ def find_fake_fast(addr, size):
 
             if main_heap.fastbin_index(value) == fastbin:
                 malloc_chunk(start+offset-pwndbg.arch.ptrsize)
+'''
+class MallocChunkPrinter(object):
+    """Prints a malloc_chunk"""
+    def __init__(self, val):
+        self.val = val
+
+    def display_hint(self):
+        return 'string'
+
+    def to_string(self):
+        return 'Hello, world'
+def str_lookup_function(val):
+    lookup_tag = val.type.tag
+    if val.type.tag == "malloc_chunk":
+        return MallocChunkPrinter(val)
+    return None
+def load_malloc_printers(event):
+    objfile = event.new_objfile
+    print('loaded', objfile)
+    objfile.pretty_printers.append(str_lookup_function)
+gdb.events.new_objfile.connect(load_malloc_printers)
+'''

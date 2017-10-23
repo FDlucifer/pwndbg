@@ -30,6 +30,12 @@ def update():
     else:
         Structure = ctypes.BigEndianStructure
 
-    module.__dict__.update(locals())
+    if pwndbg.arch.ptrsize == 4:
+        size_t = ctypes.c_uint32
+    else:
+        size_t = ctypes.c_uint64
+
+    module.Structure = Structure
+    module.size_t = size_t
 
 update()
